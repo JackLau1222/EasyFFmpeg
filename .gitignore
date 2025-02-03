@@ -1,0 +1,7 @@
+example/*dSYM
+example/output
+decode_into_yuv
+filtering_video
+video_player
+.DS_Store
+example/.DS_Store
