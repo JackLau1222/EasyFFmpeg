@@ -1,12 +1,11 @@
 /*
- * copyright (c) 2024 Jack Lau
+ * copyright (c) 2025 Jack Lau
  * 
- * This file is a tutorial about filtering video through ffmpeg API
+ * This file is a example about filtering video through EasyFFmpeg API
  * 
  * FFmpeg version 5.1.4
- * Tested on MacOS 14.1.2, compiled with clang 14.0.3
  */
-#include "../include/easy_utils.h"
+#include "../include/easy_api.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -38,51 +37,13 @@ int height     = 480;
 enum AVPixelFormat pix_fmt = AV_PIX_FMT_YUV420P;
 AVRational sample_aspect_ratio = {1, 1};
 
-static int open_input_file(const char *filename, AVFormatContext **fmt_ctx, AVCodecContext **dec_ctx, int *video_stream_index)
-{
-    const AVCodec *dec;
-    int ret;
-
-    if ((ret = avformat_open_input(fmt_ctx, filename, NULL, NULL)) < 0) {
-        av_log(NULL, AV_LOG_ERROR, "Cannot open input file\n");
-        return ret;
-    }
-
-    if ((ret = avformat_find_stream_info(*fmt_ctx, NULL)) < 0) {
-        av_log(NULL, AV_LOG_ERROR, "Cannot find stream information\n");
-        return ret;
-    }
-
-    /* select the video stream */
-    ret = av_find_best_stream(*fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &dec, 0);
-    if (ret < 0) {
-        av_log(NULL, AV_LOG_ERROR, "Cannot find a video stream in the input file\n");
-        return ret;
-    }
-    *video_stream_index = ret;
-
-    /* create decoding context */
-    *dec_ctx = avcodec_alloc_context3(dec);
-    if (!*dec_ctx)
-        return AVERROR(ENOMEM);
-    avcodec_parameters_to_context(*dec_ctx, (*fmt_ctx)->streams[*video_stream_index]->codecpar);
-
-    /* init the video decoder */
-    if ((ret = avcodec_open2(*dec_ctx, dec, NULL)) < 0) {
-        av_log(NULL, AV_LOG_ERROR, "Cannot open video decoder\n");
-        return ret;
-    }
-
-    return 0;
-}
-
 static int init_filters(const char *filters_descr, AVRational time_base, int width, int height, enum AVPixelFormat pix_fmt, AVRational sample_aspect_ratio)
 {
     char args[512];
     int ret = 0;
     const AVFilter *buffersrc  = avfilter_get_by_name("buffer");
     const AVFilter *buffersink = avfilter_get_by_name("buffersink");
-    enum AVPixelFormat pix_fmts[] = { AV_PIX_FMT_GRAY8, AV_PIX_FMT_NONE };
+    enum AVPixelFormat pix_fmts[] = { AV_PIX_FMT_YUV420P, AV_PIX_FMT_GRAY8, AV_PIX_FMT_NONE };
 
     filter_graph = avfilter_graph_alloc();
     if (!filter_graph) {
@@ -183,7 +144,7 @@ int main(int argc, char **argv)
     AVFrame *filt_frame;
 
     if (argc != 4) {
-        fprintf(stderr, "Usage: %s file1 file2\n", argv[0]);
+        fprintf(stderr, "Usage: %s input1 input2 output.yuv\n", argv[0]);
         exit(1);
     }
 
@@ -197,9 +158,9 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    if ((ret = open_input_file(argv[1], &fmt_ctx1, &dec_ctx1, &video_stream_index1)) < 0)
+    if ((ret = easy_open_video(argv[1], &fmt_ctx1, &dec_ctx1, &video_stream_index1)) < 0)
         goto end;
-    if ((ret = open_input_file(argv[2], &fmt_ctx2, &dec_ctx2, &video_stream_index2)) < 0)
+    if ((ret = easy_open_video(argv[2], &fmt_ctx2, &dec_ctx2, &video_stream_index2)) < 0)
         goto end;
     
     AVRational time_base = fmt_ctx1->streams[video_stream_index1]->time_base;
@@ -211,6 +172,14 @@ int main(int argc, char **argv)
     char *fileName = argv[3];
     AVFrame *video_dst = av_frame_alloc();
     int frameNumber = 0;
+    FILE *f = fopen(fileName, "wb");
+
+    SDL_Window *win = NULL;
+    SDL_Renderer *renderer = NULL;
+    easy_init_sdl_for_render(&win, &renderer, 640, 480);
+    SDL_Texture *texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING, width*2, height);;
+    SDL_Event event;
+
 
     int finished1 = 0, finished2 = 0;
     /* read all packets */
@@ -265,11 +234,22 @@ int main(int argc, char **argv)
             av_frame_free(&filt_frame);
             break;
         }
-        // char buffer[1024];
-        // snprintf(buffer, sizeof(buffer), "%s-%d.pgm", fileName, frameNumber++);
-        easy_save_y(filt_frame->data[0], filt_frame->linesize[0], 
-                    filt_frame->width, filt_frame->height, fileName);
+        printf("frameNumber: %d\n", frameNumber++);
+        char buffer[1024];
+        snprintf(buffer, sizeof(buffer), "%s-%d.ppm", fileName, frameNumber);
+        // easy_save_pgm_video(filt_frame->data[0], filt_frame->linesize[0], 
+        //                     filt_frame->width, filt_frame->height, f);
         // easy_save_pgm(filt_frame->data[0], filt_frame->linesize[0], filt_frame->width, filt_frame->height, buffer);
+        // easy_save_yuv_to_ppm(filt_frame->data[0], 
+        //                     filt_frame->data[1], 
+        //                     filt_frame->data[2], 
+        //                     filt_frame->width, filt_frame->height, buffer);
+        easy_save_yuv420(filt_frame->data[0], filt_frame->linesize[0],
+                        filt_frame->data[1], filt_frame->linesize[1],
+                        filt_frame->data[2], filt_frame->linesize[2],
+                        filt_frame->width, filt_frame->height, f);
+        easy_render_yuv420p(&renderer, &texture, filt_frame, 25);
+        if ((ret = easy_sdl_event_in_loop(&event)) < 0) goto end;
 
     }
 end:

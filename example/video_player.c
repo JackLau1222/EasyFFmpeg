@@ -1,12 +1,10 @@
 /*
  * copyright (c) 2024 Jack Lau
  * 
- * This file is a tutorial about palying(decoding and rendering) video through ffmpeg and SDL API 
+ * This file is a example about palying(decoding and rendering) video through EasyFFmpeg API
  * 
- * FFmpeg version 6.0.1
+ * FFmpeg version 5.1.4
  * SDL2 version 2.30.3
- *
- * Tested on MacOS 14.1.2, compiled with clang 14.0.3
  */
 
 #include <SDL2/SDL.h>
@@ -26,15 +24,10 @@ typedef struct VideoState{
     SDL_Texture    *texture;
 }VideoState;
 
-
 static int w_width = 1920;
 static int w_height = 1080;
 
-static SDL_Window *win = NULL;
-static SDL_Renderer *renderer = NULL;
-
-
-static int decode(VideoState *is)
+static int decode(VideoState *is, SDL_Renderer *renderer)
 {
     int ret = -1;
 
@@ -66,7 +59,6 @@ end:
     return ret;
 }
 
-
 int main(int argc, char *argv[])
 {
 
@@ -76,9 +68,6 @@ int main(int argc, char *argv[])
     AVStream *inStream = NULL;
     const AVCodec *decodec = NULL;
     AVCodecContext *ctx = NULL;
-
-    SDL_Texture *texture = NULL;
-    SDL_Event event;
 
     Uint32 pixformat = 0;
 
@@ -108,16 +97,18 @@ int main(int argc, char *argv[])
         goto end;
     }
 
-    //init SDL
-    easy_init_sdl_for_render(&win, &renderer, w_width, w_height);
-
     easy_open_video(src, &fmtCtx, &ctx, &idx);
 
     //create texture for render 
     video_width = ctx->width;
     video_height = ctx->height;
-    pixformat = SDL_PIXELFORMAT_IYUV;
-    texture = SDL_CreateTexture(renderer, pixformat, SDL_TEXTUREACCESS_STREAMING, video_width, video_height);
+
+    //init SDL
+    SDL_Window *win = NULL;
+    SDL_Renderer *renderer = NULL;
+    easy_init_sdl_for_render(&win, &renderer, w_width, w_height);
+    SDL_Texture *texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING, video_width, video_height);
+    SDL_Event event;
 
     pkt = av_packet_alloc();
     frame = av_frame_alloc();
@@ -132,26 +123,16 @@ int main(int argc, char *argv[])
     while(av_read_frame(fmtCtx, pkt) >= 0){
         if(pkt->stream_index == idx ){
             //render
-            decode(is);
+            decode(is, renderer);
         }
         //deal with SDL event
-        
-        SDL_PollEvent(&event);
-        switch (event.type)
-        {
-        case SDL_QUIT:
-            goto quit;
-            break;
-        
-        default:
-            break;
-        }
+        if ((ret = easy_sdl_event_in_loop(&event)) < 0) goto end;
 
         av_packet_unref(pkt);
     
     }
     is->pkt = NULL;
-    decode(is);
+    decode(is, renderer);
 
 quit:
     ret = 0;

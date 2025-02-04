@@ -1,14 +1,17 @@
+/*
+ * copyright (c) 2025 Jack Lau
+ * 
+ * This file is a example about decoding and saving video frames through EasyFFmpeg API
+ * 
+ * FFmpeg version 5.1.4
+ */
 #include <stdio.h>
 
-
-extern "C"
-{
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libswscale/swscale.h>
 #include "../include/easy_utils.h"
 #include "../include/easy_media.h"
-}
 
 
 void decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt,	FILE *f, char *fileName)
@@ -20,7 +23,7 @@ void decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt,	FILE *f, cha
 	ret = avcodec_send_packet(dec_ctx, pkt);
 	if (ret < 0) {
         CHECK_ERROR(ret);
-        return -1;
+        return;
 	}
 	while (ret >= 0) {
 		// receive frame from decoder
@@ -31,7 +34,7 @@ void decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt,	FILE *f, cha
 		else if (ret < 0) {
 			// something wrong, quit program
 			CHECK_ERROR(ret);
-            return -1;
+            return;
 		}
 		//printf("saving frame %3d\n", dec_ctx->pkt_serial);
 		printf("saving frame %lld\n", frame->pts);
@@ -57,7 +60,7 @@ void decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt,	FILE *f, cha
         
         /* save yuv data into ppm using swscale */
         unsigned char *rgb_buffer = (unsigned char *)malloc(3 * frame->width * frame->height);
-        easy_reformat_to_rgb24(frame, rgb_buffer, frame->width, frame->height, AV_PIX_FMT_YUV420P);
+        easy_reformat_to_rgb24(frame, rgb_buffer, frame->width, frame->height, frame->format);
         easy_save_ppm(rgb_buffer, 3 * frame->width, frame->width, frame->height, fileName);
 	}
 }
@@ -70,7 +73,7 @@ int main(int argc, char *argv[])
 	const AVCodec *Codec = NULL;
 	int ret;
     if (argc != 3) {
-        fprintf(stderr, "Usage: %s file1 file2\n", argv[0]);
+        fprintf(stderr, "Usage: %s input output\n", argv[0]);
         exit(1);
     }
 	const char *infilename = argv[1];
@@ -85,7 +88,7 @@ int main(int argc, char *argv[])
 	easy_open_video(infilename, &fmt_ctx, &codec_ctx, &VideoStreamIndex);
 
 	// dump video stream info
-	av_dump_format(fmt_ctx, VideoStreamIndex, infilename, false);
+	av_dump_format(fmt_ctx, VideoStreamIndex, infilename, 0);
 
 	//init packet
 	pkt = av_packet_alloc();

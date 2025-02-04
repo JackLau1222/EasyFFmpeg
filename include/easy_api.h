@@ -12,14 +12,12 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * Lesser General Public License for more details.
  */
-#ifndef __EASY_COMMON_H__
-#define __EASY_COMMON_H__
+#ifndef __EASY_API_H__
+#define __EASY_API_H__
 
-#define CHECK_ERROR(err) \
-    if ((err) < 0) { \
-        char errbuf[128]; \
-        av_strerror((err), errbuf, sizeof(errbuf)); \
-        fprintf(stderr, "Error: %s\n", errbuf); \
-    }
+#include "easy_common.h"
+#include "easy_display.h"
+#include "easy_media.h"
+#include "easy_utils.h"
 
-#endif // __EASY_COMMON_H__
+#endif // __EASY_API_H__

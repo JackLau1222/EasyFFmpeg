@@ -1,6 +1,6 @@
 example/*dSYM
 example/output
-decode_into_yuv
+decode_and_save
 filtering_video
 video_player
 .DS_Store
